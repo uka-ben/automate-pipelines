@@ -1,0 +1,24 @@
+!pip install yfinance
+  
+import yfinance as yf
+import pandas as pd
+
+# Fetch BTC data
+df = yf.Ticker("BTC-USD").history(period="max", interval="1m", auto_adjust=True).reset_index()
+
+# Clean column names
+df.columns = [col.replace(" ", "_").replace("(", "").replace(")", "") for col in df.columns]
+df['Datetime'] = pd.to_datetime(df['Datetime'])
+
+# Create Spark DataFrame
+btc_sdf = spark.createDataFrame(df)
+
+# Create catalog/schema if not exists
+spark.sql("CREATE CATALOG IF NOT EXISTS crypto")
+spark.sql("CREATE SCHEMA IF NOT EXISTS crypto.btc")
+
+# Write table
+btc_sdf.write.mode("overwrite").saveAsTable("crypto.btc.btc_minute")
+
+display(btc_sdf)
+
