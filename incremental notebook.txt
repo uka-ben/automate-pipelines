@@ -1,0 +1,34 @@
+!pip install yfinance
+
+import yfinance as yf
+import pandas as pd
+from pyspark.sql.functions import col
+
+# Fetch latest BTC data
+latest_df = yf.Ticker("BTC-USD").history(period="max", interval="1m", auto_adjust=True).reset_index()
+latest_df.columns = [col.replace(" ", "_").replace("(", "").replace(")", "") for col in latest_df.columns]
+latest_df['Datetime'] = pd.to_datetime(latest_df['Datetime'])
+latest_sdf = spark.createDataFrame(latest_df)
+
+# Get max timestamp from table
+try:
+    result = spark.sql("SELECT MAX(Datetime) as max_time FROM crypto.btc.btc_minute").collect()[0]
+    latest_timestamp = result['max_time']
+    
+    if latest_timestamp:
+        # Filter new rows
+        new_rows_sdf = latest_sdf.filter(col("Datetime") > latest_timestamp)
+    else:
+        new_rows_sdf = latest_sdf
+except:
+    # Table might not exist or be empty
+    new_rows_sdf = latest_sdf
+
+# Append if new rows exist
+if new_rows_sdf.count() > 0:
+    new_rows_sdf.write.mode("append").saveAsTable("crypto.btc.btc_minute")
+
+display(new_rows_sdf)
+
+
+
